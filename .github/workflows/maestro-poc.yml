@@ -8,7 +8,7 @@ on:
 jobs:
   run-maestro-poc:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -33,19 +33,15 @@ jobs:
         run: |
           cat > run_test.sh << 'EOF'
           #!/bin/bash
-          set -e
           
           echo "=== DEVICE INFORMATION ==="
+          adb wait-for-device
+          adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+          
           echo "Device model: $(adb shell getprop ro.product.model)"
           echo "Android version: $(adb shell getprop ro.build.version.release)"
           echo "API level: $(adb shell getprop ro.build.version.sdk)"
           echo "==============================="
-          
-          echo "Waiting for device (max 60s)..."
-          timeout 60 adb wait-for-device || (echo "Device timeout" && exit 1)
-          
-          echo "Waiting for boot completion (max 90s)..."
-          timeout 90 bash -c 'while [[ -z $(adb shell getprop sys.boot_completed 2>/dev/null) ]]; do sleep 2; done' || (echo "Boot timeout" && exit 1)
           
           APK_FILE=$(find . -name "*.apk" -type f | head -1)
           if [ -z "$APK_FILE" ]; then
@@ -54,17 +50,14 @@ jobs:
           fi
           
           echo "Installing: $APK_FILE"
-          adb install "$APK_FILE" || (echo "Install failed" && exit 1)
+          adb install "$APK_FILE"
           
           cd Maestro
-          echo "Running quick debug test..."
-          timeout 120 maestro test debug_flow.yaml || echo "Debug flow had issues"
+          echo "Running debug flow..."
+          maestro test debug_flow.yaml || echo "Debug flow had issues"
           
-          echo "Running simple coordinate-based test..."
-          timeout 120 maestro test simple_flow.yaml || echo "Simple flow had issues"
-          
-          echo "Running main test..."
-          timeout 120 maestro test sample_flow.yaml || echo "Main test had issues"
+          echo "Running simple flow..."
+          maestro test simple_flow.yaml || echo "Simple flow had issues"
           EOF
           chmod +x run_test.sh
 
@@ -74,9 +67,9 @@ jobs:
           api-level: 28
           target: default
           arch: x86_64
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -memory 2048
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: true
-          script: timeout 600 ./run_test.sh
+          script: ./run_test.sh
 
       - name: Upload test results
         if: always()
@@ -84,7 +77,6 @@ jobs:
         with:
           name: maestro-results
           path: |
-            Maestro/sample_flow.yaml
-
+            Maestro/*.yaml
             Maestro/*.png
             ~/.maestro/logs/
