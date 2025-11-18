@@ -1,0 +1,64 @@
+appId: waterwala.com.prime
+
+---
+# Crash Debug Flow - Handle app not responding issues
+- takeScreenshot: start_screen.png
+
+# Clear any existing crash dialogs first
+- pressKey: Back
+- delay: 500
+- pressKey: Back
+- delay: 500
+
+# Explicit app launch
+- launchApp:
+    appId: waterwala.com.prime
+- delay: 5000
+
+- takeScreenshot: after_launch_attempt.png
+
+# Check if crash dialog appeared and handle it
+- runFlow:
+    when:
+      visible: "Close app"
+    commands:
+      - takeScreenshot: found_close_app_dialog.png
+      - tapOn: "Wait"
+      - delay: 5000
+      - takeScreenshot: after_wait_button.png
+
+# Check for "isn't responding" dialog
+- runFlow:
+    when:
+      visible: "isn't responding"
+    commands:
+      - takeScreenshot: found_not_responding.png
+      - tapOn: "Wait"
+      - delay: 5000
+      - takeScreenshot: after_wait_not_responding.png
+
+# Check for "DrinkPrime" in dialog
+- runFlow:
+    when:
+      visible: "DrinkPrime"
+    commands:
+      - takeScreenshot: found_drinkprime_dialog.png
+      - tapOn: "Wait"
+      - delay: 3000
+
+# If app still hasn't loaded, try force stopping and relaunching
+- pressKey: Home
+- delay: 2000
+- launchApp:
+    appId: waterwala.com.prime
+- delay: 3000
+
+- takeScreenshot: final_state.png
+
+# Try a simple interaction if app is now working
+- runFlow:
+    when:
+      visible: "Mobile number"
+    commands:
+      - takeScreenshot: app_is_working.png
+      - tapOn: "Mobile number"

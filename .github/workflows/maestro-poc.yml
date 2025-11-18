@@ -41,6 +41,7 @@ jobs:
           echo "Device model: $(adb shell getprop ro.product.model)"
           echo "Android version: $(adb shell getprop ro.build.version.release)"
           echo "API level: $(adb shell getprop ro.build.version.sdk)"
+          echo "CPU ABI: $(adb shell getprop ro.product.cpu.abi)"
           echo "==============================="
           
           APK_FILE=$(find . -name "*.apk" -type f | head -1)
@@ -50,7 +51,24 @@ jobs:
           fi
           
           echo "Installing: $APK_FILE"
-          adb install "$APK_FILE"
+          adb install -r "$APK_FILE"
+          
+          # Get the package name from the APK
+          PACKAGE_NAME=$(aapt dump badging "$APK_FILE" | grep "package:" | sed -n "s/.*name='\([^']*\)'.*/\1/p")
+          echo "Package name: $PACKAGE_NAME"
+          
+          # Try to launch the app and check if it crashes
+          echo "Attempting to launch app..."
+          adb shell monkey -p $PACKAGE_NAME -c android.intent.category.LAUNCHER 1
+          
+          # Wait a bit and check if app is running
+          sleep 5
+          RUNNING=$(adb shell ps | grep $PACKAGE_NAME || echo "not running")
+          echo "App status: $RUNNING"
+          
+          # Clear any crash dialogs
+          adb shell input keyevent 4 # Back button
+          adb shell input tap 200 400 # Tap to dismiss any dialogs
           
           cd Maestro
           echo "Running debug flow..."
@@ -64,10 +82,10 @@ jobs:
       - name: Start Emulator and Run Test
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 28
-          target: default
+          api-level: 29
+          target: google_apis
           arch: x86_64
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -memory 3072 -partition-size 2048
           disable-animations: true
           script: ./run_test.sh
 
