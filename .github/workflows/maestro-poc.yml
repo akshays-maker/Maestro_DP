@@ -62,7 +62,10 @@ jobs:
           
           echo "Running Maestro test..."
           cd Maestro
-          maestro test sample_flow.yaml || echo "Test completed with issues"
+          echo "First, run debug flow to capture screenshots..."
+          maestro test debug_flow.yaml || echo "Debug flow completed with issues"
+          echo "Now running main flow..."
+          maestro test sample_flow.yaml || echo "Main test completed with issues"
           EOF
           chmod +x run_test.sh
 
@@ -83,4 +86,6 @@ jobs:
           name: maestro-results
           path: |
             Maestro/sample_flow.yaml
+            Maestro/debug_flow.yaml
+            Maestro/*.png
             ~/.maestro/logs/

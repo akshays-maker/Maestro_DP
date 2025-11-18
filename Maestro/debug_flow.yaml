@@ -1,0 +1,69 @@
+appId: waterwala.com.prime
+---
+- launchApp
+# Take a screenshot to see the UI
+- takeScreenshot: "01_app_launched.png"
+# Add a small delay for UI to load
+- waitForAnimationToEnd
+# Try to find any text input field
+- runFlow:
+    when:
+      visible: "Mobile number"
+    commands:
+      - tapOn: "Mobile number"
+      - takeScreenshot: "02_after_mobile_tap.png"
+- runFlow:
+    when:
+      visible: "Mobile Number" 
+    commands:
+      - tapOn: "Mobile Number"
+      - takeScreenshot: "02_after_mobile_tap.png"
+- runFlow:
+    when:
+      visible: "Enter mobile number"
+    commands:
+      - tapOn: "Enter mobile number"
+      - takeScreenshot: "02_after_mobile_tap.png"
+- runFlow:
+    when:
+      visible: "Phone"
+    commands:
+      - tapOn: "Phone"
+      - takeScreenshot: "02_after_mobile_tap.png"
+# Try to find EditText field by ID
+- runFlow:
+    when:
+      visible:
+        id: ".*edit.*|.*input.*|.*phone.*|.*mobile.*"
+    commands:
+      - tapOn:
+          id: ".*edit.*|.*input.*|.*phone.*|.*mobile.*"
+      - takeScreenshot: "02_after_mobile_tap.png"
+# If nothing worked, just tap on center of screen where input might be
+- tapOn:
+    point: "50%,40%"
+- takeScreenshot: "03_after_center_tap.png"
+- inputText: "9876543210"
+- takeScreenshot: "04_after_input.png"
+# Look for OTP button variations
+- runFlow:
+    when:
+      visible: "Request OTP"
+    commands:
+      - tapOn: "Request OTP"
+- runFlow:
+    when:
+      visible: "GET OTP"
+    commands:
+      - tapOn: "GET OTP"
+- runFlow:
+    when:
+      visible: "Send OTP"
+    commands:
+      - tapOn: "Send OTP"
+- runFlow:
+    when:
+      visible: "SEND OTP"
+    commands:
+      - tapOn: "SEND OTP"
+- takeScreenshot: "05_final_state.png"
