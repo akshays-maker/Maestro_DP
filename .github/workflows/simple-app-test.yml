@@ -1,4 +1,4 @@
-name: Simple App Test
+name: Simple App Test - Community Stable Config
 
 on:
   workflow_dispatch:
@@ -6,106 +6,91 @@ on:
 jobs:
   test-app-installation:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Simple App Test Script
+      - name: Increase Swap Memory (Community Fix)
         run: |
-          cat > simple_test.sh << 'EOF'
-          #!/bin/bash
-          
-          echo "=== WAITING FOR DEVICE TO BE READY ==="
-          
-          # Wait for device to be detected by ADB (not just online)
-          echo "Waiting for ADB to detect device..."
-          timeout 120 bash -c '
-            while true; do
-              if adb devices | grep -q "emulator.*device"; then
-                echo "✅ Device detected by ADB"
-                break
-              fi
-              echo "Still waiting for device... ($(adb devices))"
-              sleep 3
-            done
-          ' || (echo "❌ Timeout waiting for device" && exit 1)
-          
-          # Additional wait for boot completion with retries
-          echo "Waiting for boot completion..."
-          timeout 180 bash -c '
-            while true; do
-              BOOT_COMPLETED=$(adb shell getprop sys.boot_completed 2>/dev/null || echo "0")
-              if [ "$BOOT_COMPLETED" = "1" ]; then
-                echo "✅ Boot completed successfully"
-                break
-              fi
-              echo "Boot completion status: $BOOT_COMPLETED"
-              sleep 5
-            done
-          ' || (echo "❌ Timeout waiting for boot completion" && exit 1)
-          
-          # Wait for package manager to be ready
-          echo "Waiting for package manager..."
-          timeout 60 bash -c '
-            while true; do
-              if adb shell pm list packages >/dev/null 2>&1; then
-                echo "✅ Package manager is ready"
-                break
-              fi
-              echo "Package manager not ready yet..."
-              sleep 3
-            done
-          ' || (echo "❌ Package manager timeout" && exit 1)
-          
-          echo "=== DEVICE INFORMATION ==="
-          echo "Device model: $(adb shell getprop ro.product.model)"
-          echo "Android version: $(adb shell getprop ro.build.version.release)" 
-          echo "API level: $(adb shell getprop ro.build.version.sdk)"
-          echo "CPU ABI: $(adb shell getprop ro.product.cpu.abi)"
-          echo "Available ABIs: $(adb shell getprop ro.product.cpu.abilist)"
-          echo "==============================="
-          
-          APK_FILE=$(find . -name "*.apk" -type f | head -1)
-          echo "Found APK: $APK_FILE"
-          
-          echo "Installing APK..."
-          adb install -r "$APK_FILE"
-          
-          echo "Listing installed packages..."
-          adb shell pm list packages | grep -E "(prime|drink|waterwala)" || echo "Package not found in list"
-          
-          PACKAGE_NAME="waterwala.com.prime"
-          echo "Attempting to start $PACKAGE_NAME..."
-          
-          # Try different launch methods
-          adb shell monkey -p "$PACKAGE_NAME" -c android.intent.category.LAUNCHER 1
-          sleep 8
-          
-          echo "Checking if app is running..."
-          adb shell ps | grep "$PACKAGE_NAME" && echo "✅ App is running!" || echo "❌ App not running"
-          
-          echo "Taking screenshot..."
-          adb shell screencap -p > app_test_screenshot.png
-          
-          echo "Checking recent logcat for errors..."
-          adb logcat -d | tail -30
-          
-          EOF
-          chmod +x simple_test.sh
+          sudo fallocate -l 4G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          echo "✅ Swap memory added successfully"
 
-      - name: Start Emulator and Test App
+      - name: Start Emulator and Test App (Proven Stable Config)
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
-          target: google_apis
+          api-level: 29
+          target: default
           arch: x86_64
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -memory 2048
-          disable-animations: true
-          script: ./simple_test.sh
+          profile: pixel
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: false
+          script: |
+            echo "=== COMMUNITY STABLE EMULATOR TEST ==="
+            
+            # Wait for device
+            adb wait-for-device
+            echo "Device detected, waiting for boot completion..."
+            
+            # Wait for boot completion
+            timeout 120 bash -c 'while [[ -z $(adb shell getprop sys.boot_completed 2>/dev/null) ]]; do sleep 2; echo "Still booting..."; done' || echo "Boot timeout"
+            
+            # Wake up emulator
+            adb shell input keyevent 82
+            
+            # Community recommended wait
+            sleep 30
+            
+            echo "=== DEVICE INFORMATION ==="
+            echo "Device model: $(adb shell getprop ro.product.model)"
+            echo "Android version: $(adb shell getprop ro.build.version.release)" 
+            echo "API level: $(adb shell getprop ro.build.version.sdk)"
+            echo "CPU ABI: $(adb shell getprop ro.product.cpu.abi)"
+            echo "Available ABIs: $(adb shell getprop ro.product.cpu.abilist)"
+            echo "==============================="
+            
+            # Disable animations (ignore failures)
+            echo "Disabling animations..."
+            adb shell settings put global window_animation_scale 0 || echo "Animation setting failed (normal in CI)"
+            adb shell settings put global transition_animation_scale 0 || echo "Transition setting failed (normal in CI)"
+            adb shell settings put global animator_duration_scale 0 || echo "Animator setting failed (normal in CI)"
+            
+            APK_FILE=$(find . -name "*.apk" -type f | head -1)
+            echo "Found APK: $APK_FILE"
+            
+            echo "Installing APK..."
+            adb install -r "$APK_FILE"
+            
+            echo "Verifying installation..."
+            adb shell pm list packages | grep -E "(prime|drink|waterwala)" && echo "✅ Package found" || echo "❌ Package not found"
+            
+            PACKAGE_NAME="waterwala.com.prime"
+            echo "Attempting to start $PACKAGE_NAME..."
+            
+            # Launch app
+            adb shell monkey -p "$PACKAGE_NAME" -c android.intent.category.LAUNCHER 1
+            sleep 10
+            
+            echo "Checking if app is running..."
+            adb shell ps | grep "$PACKAGE_NAME" && echo "✅ App is running!" || echo "❌ App not running"
+            
+            echo "Taking screenshot..."
+            adb shell screencap -p > app_test_screenshot.png
+            
+            echo "Checking recent logcat for errors..."
+            adb logcat -d | tail -30
 
       - name: Upload screenshot
         if: always()

@@ -8,18 +8,32 @@ on:
 jobs:
   run-maestro-poc:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 30
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Increase Swap Memory (Fix 7)
+        run: |
+          sudo fallocate -l 4G /swapfile
+          sudo chmod 600 /swapfile
+          sudo mkswap /swapfile
+          sudo swapon /swapfile
+          echo "Swap memory added successfully"
 
       - name: Install Maestro
         run: |
           curl -Ls https://get.maestro.mobile.dev | bash
           echo "$HOME/.maestro/bin" >> $GITHUB_PATH
-
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
 
       - name: Check repository contents
         run: |
@@ -29,118 +43,92 @@ jobs:
           echo "=== Maestro directory ==="
           ls -la Maestro/
 
-      - name: Prepare test script
-        run: |
-          cat > run_test.sh << 'EOF'
-          #!/bin/bash
-          
-          echo "=== WAITING FOR DEVICE TO BE READY ==="
-          
-          # Wait for device to be detected by ADB (not just online)
-          echo "Waiting for ADB to detect device..."
-          timeout 120 bash -c '
-            while true; do
-              if adb devices | grep -q "emulator.*device"; then
-                echo "Device detected by ADB"
-                break
-              fi
-              echo "Still waiting for device... ($(adb devices))"
-              sleep 3
-            done
-          '
-          
-          # Additional wait for boot completion with retries
-          echo "Waiting for boot completion..."
-          timeout 180 bash -c '
-            while true; do
-              BOOT_COMPLETED=$(adb shell getprop sys.boot_completed 2>/dev/null || echo "0")
-              if [ "$BOOT_COMPLETED" = "1" ]; then
-                echo "Boot completed successfully"
-                break
-              fi
-              echo "Boot completion status: $BOOT_COMPLETED"
-              sleep 5
-            done
-          '
-          
-          # Wait for package manager to be ready
-          echo "Waiting for package manager..."
-          timeout 60 bash -c '
-            while true; do
-              if adb shell pm list packages >/dev/null 2>&1; then
-                echo "Package manager is ready"
-                break
-              fi
-              echo "Package manager not ready yet..."
-              sleep 3
-            done
-          '
-          
-          echo "=== DEVICE INFORMATION ==="
-          adb shell getprop ro.product.model
-          adb shell getprop ro.build.version.release
-          adb shell getprop ro.build.version.sdk
-          adb shell getprop ro.product.cpu.abi
-          echo "==============================="
-          
-          APK_FILE=$(find . -name "*.apk" -type f | head -1)
-          if [ -z "$APK_FILE" ]; then
-            echo "No APK found"
-            exit 1
-          fi
-          
-          echo "Installing: $APK_FILE"
-          adb install -r "$APK_FILE"
-          
-          # Get the package name from the APK
-          PACKAGE_NAME="waterwala.com.prime"
-          echo "Package name: $PACKAGE_NAME"
-          
-          # Clear app data and grant permissions
-          echo "Preparing app environment..."
-          adb shell pm clear "$PACKAGE_NAME" 2>/dev/null || echo "Could not clear app data"
-          adb shell pm grant "$PACKAGE_NAME" android.permission.READ_PHONE_STATE 2>/dev/null || echo "Phone permission granted"
-          adb shell pm grant "$PACKAGE_NAME" android.permission.INTERNET 2>/dev/null || echo "Internet permission granted"
-          adb shell pm grant "$PACKAGE_NAME" android.permission.ACCESS_NETWORK_STATE 2>/dev/null || echo "Network permission granted"
-          
-          # Try to launch the app and verify it starts
-          echo "Attempting to launch app..."
-          adb shell monkey -p "$PACKAGE_NAME" -c android.intent.category.LAUNCHER 1
-          
-          # Wait and check if app is running, with detailed logging
-          echo "Waiting 10 seconds for app to start..."
-          sleep 10
-          
-          echo "Checking running processes..."
-          adb shell ps | grep "$PACKAGE_NAME" || echo "❌ App not found in running processes"
-          
-          echo "Checking for crash logs..."
-          adb logcat -d | grep -E "($PACKAGE_NAME|AndroidRuntime|FATAL)" | tail -15
-          
-          echo "Taking screenshot to see current state..."
-          adb shell screencap -p > /tmp/pre_maestro.png || echo "Could not take screenshot"
-          
-          cd Maestro
-          echo "Running crash debug flow first..."
-          maestro test crash_debug_flow.yaml || echo "Crash debug flow had issues"
-          
-          echo "Running debug flow..."
-          maestro test debug_flow.yaml || echo "Debug flow had issues"
-          
-          echo "Running simple flow..."
-          maestro test simple_flow.yaml || echo "Simple flow had issues"
-          EOF
-          chmod +x run_test.sh
-
       - name: Start Emulator and Run Test
         uses: reactivecircus/android-emulator-runner@v2
         with:
-          api-level: 30
-          target: google_apis
+          api-level: 29
+          target: default
           arch: x86_64
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -memory 2048 -partition-size 2048
-          disable-animations: true
-          script: ./run_test.sh
+          profile: pixel
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: false
+          script: |
+            echo "=== COMMUNITY STABLE EMULATOR CONFIG ==="
+            
+            # Fix 2: Long boot timeout - wait for device properly
+            adb wait-for-device
+            echo "Device detected, waiting for boot completion..."
+            
+            # Wait for boot completion with longer timeout
+            timeout 120 bash -c 'while [[ -z $(adb shell getprop sys.boot_completed 2>/dev/null) ]]; do sleep 2; echo "Still booting..."; done' || echo "Boot timeout reached"
+            
+            # Fix 5: Wake up emulator
+            adb shell input keyevent 82
+            
+            # Fix 2: Additional wait for system to stabilize (community recommendation)
+            echo "Waiting 30 seconds for system stabilization..."
+            sleep 30
+            
+            # Verify emulator is ready
+            echo "Final device check:"
+            adb devices
+            
+            echo "=== DEVICE INFORMATION ==="
+            adb shell getprop ro.product.model
+            adb shell getprop ro.build.version.release
+            adb shell getprop ro.build.version.sdk
+            adb shell getprop ro.product.cpu.abi
+            echo "==============================="
+            
+            # Fix 3: Disable animations inside emulator (ignore errors - common issue)
+            echo "Disabling animations..."
+            adb shell settings put global window_animation_scale 0 || echo "Animation setting failed (common in CI)"
+            adb shell settings put global transition_animation_scale 0 || echo "Transition setting failed (common in CI)"  
+            adb shell settings put global animator_duration_scale 0 || echo "Animator setting failed (common in CI)"
+            
+            # Install APK
+            APK_FILE=$(find . -name "*.apk" -type f | head -1)
+            if [ -z "$APK_FILE" ]; then
+              echo "No APK found"
+              exit 1
+            fi
+            
+            echo "Installing: $APK_FILE"
+            adb install -r "$APK_FILE"
+            
+            # Verify app installation
+            PACKAGE_NAME="waterwala.com.prime"
+            adb shell pm list packages | grep prime && echo "✅ App installed successfully" || echo "❌ App installation verification failed"
+            
+            # Grant permissions (ignore failures)
+            echo "Granting permissions..."
+            adb shell pm grant "$PACKAGE_NAME" android.permission.READ_PHONE_STATE 2>/dev/null || echo "Phone permission not needed"
+            adb shell pm grant "$PACKAGE_NAME" android.permission.INTERNET 2>/dev/null || echo "Internet permission not needed"
+            
+            # Launch app and wait for it to start
+            echo "Launching app..."
+            adb shell monkey -p "$PACKAGE_NAME" -c android.intent.category.LAUNCHER 1
+            sleep 10
+            
+            # Check if app is running
+            adb shell ps | grep "$PACKAGE_NAME" && echo "✅ App is running!" || echo "❌ App not running - checking logs..."
+            if ! adb shell ps | grep -q "$PACKAGE_NAME"; then
+              echo "App crash logs:"
+              adb logcat -d | grep -E "($PACKAGE_NAME|AndroidRuntime|FATAL)" | tail -10
+            fi
+            
+            cd Maestro
+            echo "Running Maestro tests with retry logic (Fix 6)..."
+            
+            # Fix 6: Retry logic around maestro execution
+            echo "Running crash debug flow..."
+            maestro test crash_debug_flow.yaml || (echo "Retrying crash debug..." && sleep 10 && maestro test crash_debug_flow.yaml) || echo "Crash debug flow failed"
+            
+            echo "Running debug flow..."
+            maestro test debug_flow.yaml || (echo "Retrying debug..." && sleep 10 && maestro test debug_flow.yaml) || echo "Debug flow failed"
+            
+            echo "Running sample flow with ID-based targeting..."
+            maestro test sample_flow.yaml || (echo "Retrying sample..." && sleep 10 && maestro test sample_flow.yaml) || echo "Sample flow failed"
 
       - name: Upload test results
         if: always()

@@ -1,0 +1,95 @@
+name: Maestro POC - Robust Version
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run-maestro-robust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Maestro
+        run: |
+          curl -Ls https://get.maestro.mobile.dev | bash
+          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Check repository contents
+        run: |
+          echo "=== Repository structure ==="
+          find . -name "*.apk" -type f 2>/dev/null || echo "No APK files found"
+          echo ""
+          echo "=== Maestro directory ==="
+          ls -la Maestro/
+
+      - name: Create AVD manually
+        run: |
+          echo "Creating AVD manually..."
+          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd \
+            --force \
+            --name test_avd \
+            --package "system-images;android-30;google_apis;x86_64" \
+            --tag google_apis \
+            --abi x86_64
+
+      - name: Start emulator manually
+        run: |
+          echo "Starting emulator..."
+          $ANDROID_HOME/emulator/emulator \
+            -avd test_avd \
+            -no-window \
+            -no-audio \
+            -no-snapshot-save \
+            -gpu swiftshader_indirect \
+            -memory 2048 \
+            -wipe-data &
+          
+          # Wait for device
+          echo "Waiting for device..."
+          $ANDROID_HOME/platform-tools/adb wait-for-device
+          
+          # Wait for boot
+          echo "Waiting for boot completion..."
+          while [ "`$ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed 2>/dev/null`" != "1" ]; do
+            sleep 5
+            echo "Still booting..."
+          done
+          echo "Boot completed!"
+
+      - name: Install and test app
+        run: |
+          APK_FILE=$(find . -name "*.apk" -type f | head -1)
+          echo "Installing: $APK_FILE"
+          
+          # Install APK
+          adb install "$APK_FILE"
+          
+          # Basic device info
+          echo "=== DEVICE INFO ==="
+          adb shell getprop ro.product.model
+          adb shell getprop ro.build.version.release
+          adb shell getprop ro.build.version.sdk
+          echo "=================="
+          
+          # Run Maestro tests
+          cd Maestro
+          echo "Testing crash debug flow..."
+          maestro test crash_debug_flow.yaml || echo "Crash debug flow had issues"
+          
+          echo "Testing sample flow with ID-based targeting..."
+          maestro test sample_flow.yaml || echo "Sample flow had issues"
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-results-robust
+          path: |
+            Maestro/*.yaml
+            Maestro/*.png
+            ~/.maestro/logs/

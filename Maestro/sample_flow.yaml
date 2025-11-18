@@ -8,21 +8,12 @@ appId: waterwala.com.prime
       - tapOn: "Allow"
 - runFlow:
     when:
-      visible: "Mobile number"
-    commands:
-      - tapOn: "Mobile number"
-- runFlow:
-    when:
-      visible: "Phone"
-    commands:
-      - tapOn: "Phone"
-- runFlow:
-    when:
       visible:
-        id: "*mobile*"
+        id: "waterwala.com.prime:id/et_mobile"
     commands:
       - tapOn:
-          id: "*mobile*"
+          id: "waterwala.com.prime:id/et_mobile"
+      - takeScreenshot: "01_found_mobile_number.png"
 - inputText: "9876543210"
 - runFlow:
     when:
