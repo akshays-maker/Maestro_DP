@@ -35,6 +35,17 @@ jobs:
           #!/bin/bash
           set -e
           
+          echo "=== DEVICE INFORMATION ==="
+          echo "Device model: $(adb shell getprop ro.product.model)"
+          echo "Android version: $(adb shell getprop ro.build.version.release)"
+          echo "API level: $(adb shell getprop ro.build.version.sdk)"
+          echo "Architecture: $(adb shell getprop ro.product.cpu.abi)"
+          echo "Screen density: $(adb shell wm density)"
+          echo "Screen size: $(adb shell wm size)"
+          echo "Device name: $(adb shell getprop ro.product.name)"
+          echo "Build ID: $(adb shell getprop ro.build.id)"
+          echo "==============================="
+          
           echo "Waiting for device..."
           adb wait-for-device
           adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'

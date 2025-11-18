@@ -1,7 +1,7 @@
 appId: waterwala.com.prime
 ---
 - launchApp
-- tapOn: "Mobile Number"
+- tapOn: "Mobile number"
 - inputText: "9876543210"
 - tapOn: "Request OTP"
 # OTP Entry and Validation

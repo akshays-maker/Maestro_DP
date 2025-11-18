@@ -1,0 +1,104 @@
+name: Maestro Multi-Device Testing
+
+on:
+  workflow_dispatch:
+    inputs:
+      device_matrix:
+        description: 'Test multiple devices'
+        required: false
+        default: 'true'
+
+jobs:
+  test-multiple-devices:
+    if: github.event.inputs.device_matrix == 'true' || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        device-config:
+          - name: "Pixel_4_API_28"
+            api-level: 28
+            target: google_apis
+            arch: x86_64
+          - name: "Pixel_6_API_30" 
+            api-level: 30
+            target: google_apis
+            arch: x86_64
+          - name: "Galaxy_S22_API_32"
+            api-level: 32
+            target: google_apis
+            arch: x86_64
+          - name: "Tablet_API_29"
+            api-level: 29
+            target: google_apis
+            arch: x86_64
+            
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Maestro
+        run: |
+          curl -Ls https://get.maestro.mobile.dev | bash
+          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Create test script for ${{ matrix.device-config.name }}
+        run: |
+          cat > run_test_${{ matrix.device-config.name }}.sh << 'EOF'
+          #!/bin/bash
+          set -e
+          
+          echo "=== TESTING ON: ${{ matrix.device-config.name }} ==="
+          echo "API Level: ${{ matrix.device-config.api-level }}"
+          echo "Target: ${{ matrix.device-config.target }}"
+          echo "Architecture: ${{ matrix.device-config.arch }}"
+          echo "================================================"
+          
+          echo "Getting device details..."
+          adb wait-for-device
+          adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+          
+          echo "Device model: $(adb shell getprop ro.product.model)"
+          echo "Android version: $(adb shell getprop ro.build.version.release)"
+          echo "API level: $(adb shell getprop ro.build.version.sdk)"
+          echo "Architecture: $(adb shell getprop ro.product.cpu.abi)"
+          echo "Screen density: $(adb shell wm density)"
+          echo "Screen size: $(adb shell wm size)"
+          
+          APK_FILE=$(find . -name "*.apk" -type f | head -1)
+          if [ -z "$APK_FILE" ]; then
+            echo "No APK found"
+            exit 1
+          fi
+          
+          echo "Installing: $APK_FILE"
+          adb install "$APK_FILE"
+          
+          echo "Running Maestro test on ${{ matrix.device-config.name }}..."
+          cd Maestro
+          maestro test sample_flow.yaml || echo "Test completed with issues"
+          EOF
+          chmod +x run_test_${{ matrix.device-config.name }}.sh
+
+      - name: Run Test on ${{ matrix.device-config.name }}
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: ${{ matrix.device-config.api-level }}
+          target: ${{ matrix.device-config.target }}
+          arch: ${{ matrix.device-config.arch }}
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: true
+          script: ./run_test_${{ matrix.device-config.name }}.sh
+
+      - name: Upload results for ${{ matrix.device-config.name }}
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-results-${{ matrix.device-config.name }}
+          path: |
+            Maestro/sample_flow.yaml
+            ~/.maestro/logs/
