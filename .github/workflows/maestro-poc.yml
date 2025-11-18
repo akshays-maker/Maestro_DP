@@ -40,14 +40,14 @@ jobs:
 
       - name: Check APK availability
         run: |
-          cd Maestro
-          ls -la *.apk || echo "No APK files found in Maestro directory"
-          if [ -f "android-customer-app-changes-may-s1.apk" ]; then
-            echo "✅ Found APK: android-customer-app-changes-may-s1.apk"
-          else
-            echo "❌ APK not found"
-            exit 1
-          fi
+          echo "=== Checking repository structure ==="
+          find . -name "*.apk" -type f 2>/dev/null || echo "No APK files found"
+          echo ""
+          echo "=== Contents of Maestro directory ==="
+          ls -la Maestro/
+          echo ""
+          echo "=== Contents of dp_mobile_automation (if exists) ==="
+          find dp_mobile_automation -name "*.apk" -type f 2>/dev/null || echo "dp_mobile_automation not accessible or no APK found"
 
       - name: Start Android Emulator and Run Test
         uses: reactivecircus/android-emulator-runner@v2
@@ -61,17 +61,24 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           disable-animations: true
           script: |
-            cd Maestro
             echo "Waiting for device to be ready..."
             adb wait-for-device
             adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
             
-            echo "Installing APK..."
-            adb install android-customer-app-changes-may-s1.apk
+            echo "Finding and installing APK..."
+            APK_FILE=$(find . -name "*.apk" -type f | head -1)
+            if [ -n "$APK_FILE" ]; then
+              echo "Found APK: $APK_FILE"
+              adb install "$APK_FILE"
+            else
+              echo "No APK file found in repository"
+              exit 1
+            fi
             
             echo "Checking installed packages..."
             adb shell pm list packages | grep waterwala || echo "App not found in package list"
             
+            cd Maestro
             echo "Running Maestro test..."
             maestro test sample_flow.yaml
 
