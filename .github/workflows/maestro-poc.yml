@@ -60,6 +60,9 @@ jobs:
           echo "Running quick debug test..."
           timeout 120 maestro test debug_flow.yaml || echo "Debug flow had issues"
           
+          echo "Running simple coordinate-based test..."
+          timeout 120 maestro test simple_flow.yaml || echo "Simple flow had issues"
+          
           echo "Running main test..."
           timeout 120 maestro test sample_flow.yaml || echo "Main test had issues"
           EOF
@@ -83,5 +86,6 @@ jobs:
           path: |
             Maestro/sample_flow.yaml
             Maestro/debug_flow.yaml
+            Maestro/simple_flow.yaml
             Maestro/*.png
             ~/.maestro/logs/

@@ -1,0 +1,17 @@
+appId: waterwala.com.prime
+---
+- launchApp
+- waitForAnimationToEnd:
+    timeout: 5000
+# Take screenshot first
+- takeScreenshot: "main_01_launched.png"
+# Try coordinate-based approach since text detection is failing
+- tapOn:
+    point: "50%,40%"
+- takeScreenshot: "main_02_after_tap.png"
+- inputText: "9876543210"
+- takeScreenshot: "main_03_after_input.png"
+# Try to find any button to proceed
+- tapOn:
+    point: "50%,60%"
+- takeScreenshot: "main_04_after_button.png"

@@ -23,14 +23,26 @@ appId: waterwala.com.prime
     commands:
       - tapOn: "Phone"
       - takeScreenshot: "02_found_phone.png"
-# Fallback: tap center screen
-- runFlow:
-    when:
-      not:
-        visible: "Mobile number|Enter mobile number|Phone"
-    commands:
-      - tapOn:
-          point: "50%,40%"
-      - takeScreenshot: "02_fallback_center_tap.png"
+# Always try fallback tap (no condition)
+- tapOn:
+    point: "50%,40%"
+- takeScreenshot: "02_fallback_center_tap.png"
 - inputText: "9876543210"
 - takeScreenshot: "03_after_input.png"
+# Try OTP button
+- runFlow:
+    when:
+      visible: "Request OTP"
+    commands:
+      - tapOn: "Request OTP"
+- runFlow:
+    when:
+      visible: "GET OTP"
+    commands:
+      - tapOn: "GET OTP"
+- runFlow:
+    when:
+      visible: "Send OTP"
+    commands:
+      - tapOn: "Send OTP"
+- takeScreenshot: "04_final.png"
