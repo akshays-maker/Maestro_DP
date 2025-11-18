@@ -6,14 +6,17 @@ appId: waterwala.com.prime
 
 # Clear any existing crash dialogs first
 - pressKey: Back
-- delay: 500
+- waitForAnimationToEnd:
+    timeout: 500
 - pressKey: Back
-- delay: 500
+- waitForAnimationToEnd:
+    timeout: 500
 
 # Explicit app launch
 - launchApp:
     appId: waterwala.com.prime
-- delay: 5000
+- waitForAnimationToEnd:
+    timeout: 5000
 
 - takeScreenshot: after_launch_attempt.png
 
@@ -24,7 +27,8 @@ appId: waterwala.com.prime
     commands:
       - takeScreenshot: found_close_app_dialog.png
       - tapOn: "Wait"
-      - delay: 5000
+      - waitForAnimationToEnd:
+          timeout: 5000
       - takeScreenshot: after_wait_button.png
 
 # Check for "isn't responding" dialog
@@ -34,7 +38,8 @@ appId: waterwala.com.prime
     commands:
       - takeScreenshot: found_not_responding.png
       - tapOn: "Wait"
-      - delay: 5000
+      - waitForAnimationToEnd:
+          timeout: 5000
       - takeScreenshot: after_wait_not_responding.png
 
 # Check for "DrinkPrime" in dialog
@@ -44,14 +49,17 @@ appId: waterwala.com.prime
     commands:
       - takeScreenshot: found_drinkprime_dialog.png
       - tapOn: "Wait"
-      - delay: 3000
+      - waitForAnimationToEnd:
+          timeout: 3000
 
 # If app still hasn't loaded, try force stopping and relaunching
 - pressKey: Home
-- delay: 2000
+- waitForAnimationToEnd:
+    timeout: 2000
 - launchApp:
     appId: waterwala.com.prime
-- delay: 3000
+- waitForAnimationToEnd:
+    timeout: 3000
 
 - takeScreenshot: final_state.png
 
