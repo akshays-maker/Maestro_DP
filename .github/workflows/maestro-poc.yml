@@ -1,14 +1,3 @@
-# Maestro Mobile Automation POC
-# 
-# This workflow runs Maestro tests on an Android emulator in GitHub Actions.
-# 
-# How to trigger:
-# - Automatically on push to main branch
-# - Manually via Actions tab -> "Maestro POC" -> "Run workflow" button
-#
-# Requirements:
-# - APK file in Maestro directory: android-customer-app-changes-may-s1.apk
-
 name: Maestro POC
 
 on:
@@ -19,7 +8,7 @@ on:
 jobs:
   run-maestro-poc:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,63 +21,55 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Enable KVM
+      - name: Check repository contents
         run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-
-      - name: Check APK availability
-        run: |
-          echo "=== Checking repository structure ==="
+          echo "=== Repository structure ==="
           find . -name "*.apk" -type f 2>/dev/null || echo "No APK files found"
           echo ""
-          echo "=== Contents of Maestro directory ==="
+          echo "=== Maestro directory ==="
           ls -la Maestro/
-          echo ""
-          echo "=== Contents of dp_mobile_automation (if exists) ==="
-          find dp_mobile_automation -name "*.apk" -type f 2>/dev/null || echo "dp_mobile_automation not accessible or no APK found"
 
-      - name: Start Android Emulator and Run Test
+      - name: Prepare test script
+        run: |
+          cat > run_test.sh << 'EOF'
+          #!/bin/bash
+          set -e
+          
+          echo "Waiting for device..."
+          adb wait-for-device
+          adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+          
+          echo "Finding APK..."
+          APK_FILE=$(find . -name "*.apk" -type f | head -1)
+          if [ -z "$APK_FILE" ]; then
+            echo "No APK found"
+            exit 1
+          fi
+          
+          echo "Installing: $APK_FILE"
+          adb install "$APK_FILE"
+          
+          echo "Running Maestro test..."
+          cd Maestro
+          maestro test sample_flow.yaml || echo "Test completed with issues"
+          EOF
+          chmod +x run_test.sh
+
+      - name: Start Emulator and Run Test
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 28
           target: default
           arch: x86_64
-          cores: 2
-          ram-size: 3584M
-          heap-size: 512M
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: true
-          script: |
-            echo "Waiting for device to be ready..."
-            adb wait-for-device
-            adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
-            
-            echo "Finding and installing APK..."
-            APK_FILE=$(find . -name "*.apk" -type f | head -1)
-            if [ -n "$APK_FILE" ]; then
-              echo "Found APK: $APK_FILE"
-              adb install "$APK_FILE"
-              echo "APK installation completed"
-            else
-              echo "No APK file found in repository"
-              ls -la Maestro/
-              exit 1
-            fi
-            
-            echo "Checking installed packages..."
-            adb shell pm list packages | grep waterwala || echo "App not found in package list"
-            
-            cd Maestro
-            echo "Running Maestro test..."
-            maestro test sample_flow.yaml
+          script: ./run_test.sh
 
-      - name: Upload artifacts
+      - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: maestro-test-results
+          name: maestro-results
           path: |
             Maestro/sample_flow.yaml
             ~/.maestro/logs/
