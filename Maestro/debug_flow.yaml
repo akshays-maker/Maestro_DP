@@ -15,7 +15,7 @@ appId: waterwala.com.prime
     when:
       visible: "Enter mobile number"
     commands:
-      - tapOn: "Enter mobile number"  
+      - tapOn: "Mobile number"
       - takeScreenshot: "02_found_enter_mobile.png"
 - runFlow:
     when:
@@ -35,14 +35,4 @@ appId: waterwala.com.prime
       visible: "Request OTP"
     commands:
       - tapOn: "Request OTP"
-- runFlow:
-    when:
-      visible: "GET OTP"
-    commands:
-      - tapOn: "GET OTP"
-- runFlow:
-    when:
-      visible: "Send OTP"
-    commands:
-      - tapOn: "Send OTP"
 - takeScreenshot: "04_final.png"

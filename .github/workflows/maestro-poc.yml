@@ -85,7 +85,6 @@ jobs:
           name: maestro-results
           path: |
             Maestro/sample_flow.yaml
-            Maestro/debug_flow.yaml
-            Maestro/simple_flow.yaml
+
             Maestro/*.png
             ~/.maestro/logs/

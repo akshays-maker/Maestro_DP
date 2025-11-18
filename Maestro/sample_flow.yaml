@@ -3,19 +3,14 @@ appId: waterwala.com.prime
 - launchApp
 - runFlow:
     when:
+      visible: "Allow"
+    commands:
+      - tapOn: "Allow"
+- runFlow:
+    when:
       visible: "Mobile number"
     commands:
       - tapOn: "Mobile number"
-- runFlow:
-    when:
-      visible: "Mobile Number"
-    commands:
-      - tapOn: "Mobile Number"
-- runFlow:
-    when:
-      visible: "Enter mobile number"
-    commands:
-      - tapOn: "Enter mobile number"
 - runFlow:
     when:
       visible: "Phone"
@@ -34,13 +29,4 @@ appId: waterwala.com.prime
       visible: "Request OTP"
     commands:
       - tapOn: "Request OTP"
-- runFlow:
-    when:
-      visible: "GET OTP"
-    commands:
-      - tapOn: "GET OTP"
-- runFlow:
-    when:
-      visible: "Send OTP"
-    commands:
-      - tapOn: "Send OTP"
+
