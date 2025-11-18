@@ -1,0 +1,60 @@
+# Maestro Mobile Automation POC
+# 
+# This workflow runs Maestro tests on an Android emulator in GitHub Actions.
+# 
+# How to trigger:
+# - Automatically on push to main branch
+# - Manually via Actions tab -> "Maestro POC" -> "Run workflow" button
+#
+# Requirements:
+# - APK file must exist at: dp_mobile_automation/src/test/resources/drinkPrimeAPK/dp-customer-app-may-changes-qa.apk
+# - Maestro flow file at: Maestro/sample_flow.yaml
+
+name: Maestro POC
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  run-maestro-poc:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Maestro
+        run: |
+          curl -Ls https://get.maestro.mobile.dev | bash
+          echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Start Android Emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          target: default
+          arch: x86_64
+          profile: Nexus 6
+          script: |
+            cd Maestro
+            # Install the APK on emulator
+            APK_PATH="../dp_mobile_automation/src/test/resources/drinkPrimeAPK/dp-customer-app-may-changes-qa.apk"
+            if [ -f "$APK_PATH" ]; then
+              adb install "$APK_PATH"
+              # Run Maestro test locally
+              maestro test sample_flow.yaml
+            else
+              echo "APK not found at $APK_PATH"
+              exit 1
+            fi
+
+      - name: Upload flow file as artifact
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: maestro-flow
+          path: Maestro/sample_flow.yaml

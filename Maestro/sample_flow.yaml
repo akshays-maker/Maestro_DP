@@ -1,0 +1,28 @@
+appId: waterwala.com.prime
+---
+- launchApp
+- tapOn: "Mobile Number"
+- inputText: "9876543210"
+- tapOn: "Request OTP"
+# OTP Entry and Validation
+- assertVisible: "Enter OTP"
+- assertVisible: "Submit the 4-digit OTP we sent to your mobile number 9999999999"
+# OTP Entry using element id and index
+- tapOn:
+    id: "waterwala.com.prime:id/otp_view"
+    index: 1
+- inputText: "8"
+- tapOn:
+    id: "waterwala.com.prime:id/otp_view"
+    index: 2
+- inputText: "8"
+- tapOn:
+    id: "waterwala.com.prime:id/otp_view"
+    index: 3
+- inputText: "7"
+- tapOn:
+    id: "waterwala.com.prime:id/otp_view"
+    index: 4
+- inputText: "5"
+- tapOn: "Continue"
+# Optionally, assert next screen or success message
