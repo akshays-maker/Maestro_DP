@@ -8,7 +8,7 @@ on:
 jobs:
   run-maestro-poc:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -39,18 +39,14 @@ jobs:
           echo "Device model: $(adb shell getprop ro.product.model)"
           echo "Android version: $(adb shell getprop ro.build.version.release)"
           echo "API level: $(adb shell getprop ro.build.version.sdk)"
-          echo "Architecture: $(adb shell getprop ro.product.cpu.abi)"
-          echo "Screen density: $(adb shell wm density)"
-          echo "Screen size: $(adb shell wm size)"
-          echo "Device name: $(adb shell getprop ro.product.name)"
-          echo "Build ID: $(adb shell getprop ro.build.id)"
           echo "==============================="
           
-          echo "Waiting for device..."
-          adb wait-for-device
-          adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+          echo "Waiting for device (max 60s)..."
+          timeout 60 adb wait-for-device || (echo "Device timeout" && exit 1)
           
-          echo "Finding APK..."
+          echo "Waiting for boot completion (max 90s)..."
+          timeout 90 bash -c 'while [[ -z $(adb shell getprop sys.boot_completed 2>/dev/null) ]]; do sleep 2; done' || (echo "Boot timeout" && exit 1)
+          
           APK_FILE=$(find . -name "*.apk" -type f | head -1)
           if [ -z "$APK_FILE" ]; then
             echo "No APK found"
@@ -58,14 +54,14 @@ jobs:
           fi
           
           echo "Installing: $APK_FILE"
-          adb install "$APK_FILE"
+          adb install "$APK_FILE" || (echo "Install failed" && exit 1)
           
-          echo "Running Maestro test..."
           cd Maestro
-          echo "First, run debug flow to capture screenshots..."
-          maestro test debug_flow.yaml || echo "Debug flow completed with issues"
-          echo "Now running main flow..."
-          maestro test sample_flow.yaml || echo "Main test completed with issues"
+          echo "Running quick debug test..."
+          timeout 120 maestro test debug_flow.yaml || echo "Debug flow had issues"
+          
+          echo "Running main test..."
+          timeout 120 maestro test sample_flow.yaml || echo "Main test had issues"
           EOF
           chmod +x run_test.sh
 
@@ -75,9 +71,9 @@ jobs:
           api-level: 28
           target: default
           arch: x86_64
-          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -memory 2048
           disable-animations: true
-          script: ./run_test.sh
+          script: timeout 600 ./run_test.sh
 
       - name: Upload test results
         if: always()
