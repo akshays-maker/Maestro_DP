@@ -1,0 +1,76 @@
+name: Simple App Test
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-app-installation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Simple App Test Script
+        run: |
+          cat > simple_test.sh << 'EOF'
+          #!/bin/bash
+          
+          echo "=== DEVICE INFORMATION ==="
+          adb wait-for-device
+          adb shell 'while [[ -z $(getprop sys.boot_completed) ]]; do sleep 1; done'
+          
+          echo "Device model: $(adb shell getprop ro.product.model)"
+          echo "Android version: $(adb shell getprop ro.build.version.release)" 
+          echo "API level: $(adb shell getprop ro.build.version.sdk)"
+          echo "CPU ABI: $(adb shell getprop ro.product.cpu.abi)"
+          echo "Available ABIs: $(adb shell getprop ro.product.cpu.abilist)"
+          echo "==============================="
+          
+          APK_FILE=$(find . -name "*.apk" -type f | head -1)
+          echo "Found APK: $APK_FILE"
+          
+          echo "Installing APK..."
+          adb install -r "$APK_FILE"
+          
+          echo "Listing installed packages..."
+          adb shell pm list packages | grep -E "(prime|drink|waterwala)" || echo "Package not found in list"
+          
+          PACKAGE_NAME="waterwala.com.prime"
+          echo "Attempting to start $PACKAGE_NAME..."
+          
+          # Try different launch methods
+          adb shell monkey -p "$PACKAGE_NAME" -c android.intent.category.LAUNCHER 1
+          sleep 5
+          
+          echo "Checking if app is running..."
+          adb shell ps | grep "$PACKAGE_NAME" && echo "✅ App is running!" || echo "❌ App not running"
+          
+          echo "Taking screenshot..."
+          adb shell screencap -p > app_test_screenshot.png
+          
+          echo "Checking recent logcat for errors..."
+          adb logcat -d | tail -20
+          
+          EOF
+          chmod +x simple_test.sh
+
+      - name: Start Emulator and Test App
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: google_apis_playstore
+          arch: x86_64
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -memory 3072
+          disable-animations: true
+          script: ./simple_test.sh
+
+      - name: Upload screenshot
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-test-screenshot
+          path: app_test_screenshot.png
