@@ -70,8 +70,10 @@ jobs:
             if [ -n "$APK_FILE" ]; then
               echo "Found APK: $APK_FILE"
               adb install "$APK_FILE"
+              echo "APK installation completed"
             else
               echo "No APK file found in repository"
+              ls -la Maestro/
               exit 1
             fi
             
