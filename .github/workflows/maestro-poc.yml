@@ -53,6 +53,7 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: false
           script: |
+            set -e
             echo "=== COMMUNITY STABLE EMULATOR CONFIG ==="
             
             # Fix 2: Long boot timeout - wait for device properly
@@ -86,7 +87,7 @@ jobs:
             adb shell settings put global transition_animation_scale 0 || echo "Transition setting failed (common in CI)"  
             adb shell settings put global animator_duration_scale 0 || echo "Animator setting failed (common in CI)"
             
-            # Install APK
+            # Find and install APK
             APK_FILE=$(find . -name "*.apk" -type f | head -1)
             if [ -z "$APK_FILE" ]; then
               echo "No APK found"
@@ -98,7 +99,11 @@ jobs:
             
             # Verify app installation
             PACKAGE_NAME="waterwala.com.prime"
-            adb shell pm list packages | grep prime && echo "✅ App installed successfully" || echo "❌ App installation verification failed"
+            if adb shell pm list packages | grep -q prime; then
+              echo "✅ App installed successfully"
+            else
+              echo "❌ App installation verification failed"
+            fi
             
             # Grant permissions (ignore failures)
             echo "Granting permissions..."
@@ -111,9 +116,10 @@ jobs:
             sleep 10
             
             # Check if app is running
-            adb shell ps | grep "$PACKAGE_NAME" && echo "✅ App is running!" || echo "❌ App not running - checking logs..."
-            if ! adb shell ps | grep -q "$PACKAGE_NAME"; then
-              echo "App crash logs:"
+            if adb shell ps | grep -q "$PACKAGE_NAME"; then
+              echo "✅ App is running!"
+            else
+              echo "❌ App not running - checking logs..."
               adb logcat -d | grep -E "($PACKAGE_NAME|AndroidRuntime|FATAL)" | tail -10
             fi
             

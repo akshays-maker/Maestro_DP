@@ -38,6 +38,7 @@ jobs:
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: false
           script: |
+            set -e
             echo "=== COMMUNITY STABLE EMULATOR TEST ==="
             
             # Wait for device
@@ -67,14 +68,24 @@ jobs:
             adb shell settings put global transition_animation_scale 0 || echo "Transition setting failed (normal in CI)"
             adb shell settings put global animator_duration_scale 0 || echo "Animator setting failed (normal in CI)"
             
+            # Find and test APK
             APK_FILE=$(find . -name "*.apk" -type f | head -1)
             echo "Found APK: $APK_FILE"
+            
+            if [ -z "$APK_FILE" ]; then
+              echo "❌ No APK found!"
+              exit 1
+            fi
             
             echo "Installing APK..."
             adb install -r "$APK_FILE"
             
             echo "Verifying installation..."
-            adb shell pm list packages | grep -E "(prime|drink|waterwala)" && echo "✅ Package found" || echo "❌ Package not found"
+            if adb shell pm list packages | grep -q -E "(prime|drink|waterwala)"; then
+              echo "✅ Package found"
+            else
+              echo "❌ Package not found"
+            fi
             
             PACKAGE_NAME="waterwala.com.prime"
             echo "Attempting to start $PACKAGE_NAME..."
@@ -84,7 +95,11 @@ jobs:
             sleep 10
             
             echo "Checking if app is running..."
-            adb shell ps | grep "$PACKAGE_NAME" && echo "✅ App is running!" || echo "❌ App not running"
+            if adb shell ps | grep -q "$PACKAGE_NAME"; then
+              echo "✅ App is running!"
+            else
+              echo "❌ App not running"
+            fi
             
             echo "Taking screenshot..."
             adb shell screencap -p > app_test_screenshot.png
