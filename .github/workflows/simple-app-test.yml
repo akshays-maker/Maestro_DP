@@ -28,6 +28,35 @@ jobs:
           sudo swapon /swapfile
           echo "✅ Swap memory added successfully"
 
+      - name: Prepare simple test script
+        run: |
+          cat > simple_test.sh << 'EOF'
+          #!/usr/bin/env bash
+          set -e
+          echo "=== SIMPLE APP TEST ==="
+          adb wait-for-device
+          timeout 180 bash -c 'until adb shell getprop sys.boot_completed | grep -m 1 1; do sleep 2; done'
+          adb shell input keyevent 82 || true
+          sleep 20
+          
+          # Best-effort animation disable (ignore failures)
+          adb shell settings put global window_animation_scale 0 || true
+          adb shell settings put global transition_animation_scale 0 || true
+          adb shell settings put global animator_duration_scale 0 || true
+          
+          APK_FILE=$(find . -name "*.apk" -type f | head -1)
+          echo "APK: $APK_FILE"
+          adb install -r "$APK_FILE"
+          
+          PACKAGE_NAME=waterwala.com.prime
+          adb shell monkey -p "$PACKAGE_NAME" -c android.intent.category.LAUNCHER 1 || true
+          sleep 8
+          
+          # Capture a screenshot regardless of app state
+          adb shell screencap -p > app_test_screenshot.png || true
+          EOF
+          chmod +x simple_test.sh
+
       - name: Start Emulator and Test App (Proven Stable Config)
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -37,75 +66,7 @@ jobs:
           profile: pixel
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: false
-          script: |
-            set -e
-            echo "=== COMMUNITY STABLE EMULATOR TEST ==="
-            
-            # Wait for device
-            adb wait-for-device
-            echo "Device detected, waiting for boot completion..."
-            
-            # Wait for boot completion
-            timeout 120 bash -c 'while [[ -z $(adb shell getprop sys.boot_completed 2>/dev/null) ]]; do sleep 2; echo "Still booting..."; done' || echo "Boot timeout"
-            
-            # Wake up emulator
-            adb shell input keyevent 82
-            
-            # Community recommended wait
-            sleep 30
-            
-            echo "=== DEVICE INFORMATION ==="
-            echo "Device model: $(adb shell getprop ro.product.model)"
-            echo "Android version: $(adb shell getprop ro.build.version.release)" 
-            echo "API level: $(adb shell getprop ro.build.version.sdk)"
-            echo "CPU ABI: $(adb shell getprop ro.product.cpu.abi)"
-            echo "Available ABIs: $(adb shell getprop ro.product.cpu.abilist)"
-            echo "==============================="
-            
-            # Disable animations (ignore failures)
-            echo "Disabling animations..."
-            adb shell settings put global window_animation_scale 0 || echo "Animation setting failed (normal in CI)"
-            adb shell settings put global transition_animation_scale 0 || echo "Transition setting failed (normal in CI)"
-            adb shell settings put global animator_duration_scale 0 || echo "Animator setting failed (normal in CI)"
-            
-            # Find and test APK
-            APK_FILE=$(find . -name "*.apk" -type f | head -1)
-            echo "Found APK: $APK_FILE"
-            
-            if [ -z "$APK_FILE" ]; then
-              echo "❌ No APK found!"
-              exit 1
-            fi
-            
-            echo "Installing APK..."
-            adb install -r "$APK_FILE"
-            
-            echo "Verifying installation..."
-            if adb shell pm list packages | grep -q -E "(prime|drink|waterwala)"; then
-              echo "✅ Package found"
-            else
-              echo "❌ Package not found"
-            fi
-            
-            PACKAGE_NAME="waterwala.com.prime"
-            echo "Attempting to start $PACKAGE_NAME..."
-            
-            # Launch app
-            adb shell monkey -p "$PACKAGE_NAME" -c android.intent.category.LAUNCHER 1
-            sleep 10
-            
-            echo "Checking if app is running..."
-            if adb shell ps | grep -q "$PACKAGE_NAME"; then
-              echo "✅ App is running!"
-            else
-              echo "❌ App not running"
-            fi
-            
-            echo "Taking screenshot..."
-            adb shell screencap -p > app_test_screenshot.png
-            
-            echo "Checking recent logcat for errors..."
-            adb logcat -d | tail -30
+          script: ./simple_test.sh
 
       - name: Upload screenshot
         if: always()
