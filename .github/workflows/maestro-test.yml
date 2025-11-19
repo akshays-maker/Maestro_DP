@@ -33,12 +33,7 @@ jobs:
         distribution: 'temurin'
         
     - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
-      with:
-        api-level: 30
-        target: default
-        arch: x86_64
-        
+      uses: android-actions/setup-android@v3       
     - name: Create and start AVD
       run: |
         echo "Creating Android Virtual Device..."
