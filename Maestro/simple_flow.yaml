@@ -1,22 +1,23 @@
 appId: waterwala.com.prime
 ---
 - launchApp
-- waitForAnimationToEnd:
-    timeout: 10000
-- waitUntilVisible:
-    id: "waterwala.com.prime:id/et_mobile"
+- extendedWaitUntil:
+    visible:
+      id: "waterwala.com.prime:id/et_mobile"
     timeout: 15000
 - tapOn:
     id: "waterwala.com.prime:id/et_mobile"
 - takeScreenshot: "01_found_mobile_number.png"
 - inputText: "9876543210"
 - tapOn: "Request OTP"
-- waitUntilVisible: 
-    text: "Enter OTP"
+- extendedWaitUntil:
+    visible:
+      text: "Enter OTP"
     timeout: 10000
 - assertVisible: "Enter OTP"
-- waitUntilVisible:
-    text: "Submit the 4-digit OTP we sent to your mobile number 9876543210"
+- extendedWaitUntil:
+    visible:
+      text: "Submit the 4-digit OTP we sent to your mobile number 9876543210"
     timeout: 8000
 - assertVisible: "Submit the 4-digit OTP we sent to your mobile number 9876543210"
 # OTP Entry using element id and index
@@ -37,45 +38,48 @@ appId: waterwala.com.prime
     index: 4
 - inputText: "5"
 - tapOn: "Continue"
-- waitForAnimationToEnd:
-    timeout: 5000
-- waitUntilVisible:
-    id: "waterwala.com.prime:id/subscriberLayout"
+- extendedWaitUntil:
+    visible:
+      id: "waterwala.com.prime:id/subscriberLayout"
     timeout: 12000
 - tapOn:
     id: "waterwala.com.prime:id/subscriberLayout"
-- waitUntilVisible:
-    id: "waterwala.com.prime:id/tvDeviceName"
+- extendedWaitUntil:
+    visible:
+      id: "waterwala.com.prime:id/tvDeviceName"
     timeout: 8000
 - assertVisible:
     id: "waterwala.com.prime:id/tvDeviceName"
 - tapOn:
     id: "waterwala.com.prime:id/ivButton"
-- waitUntilVisible:
-    id: "waterwala.com.prime:id/tvMyPlan"
+- extendedWaitUntil:
+    visible:
+      id: "waterwala.com.prime:id/tvMyPlan"
     timeout: 8000
 - assertVisible:
     id: "waterwala.com.prime:id/tvMyPlan"
 - tapOn:
     id: "waterwala.com.prime:id/ivRefreshData"
-- waitForAnimationToEnd:
-    timeout: 3000
-- waitUntilVisible:
-    text: "Payments"
+- extendedWaitUntil:
+    visible:
+      text: "Payments"
     timeout: 8000
 - tapOn: "Payments"
-- waitUntilVisible:
-    id: "waterwala.com.prime:id/fab"
+- extendedWaitUntil:
+    visible:
+      id: "waterwala.com.prime:id/fab"
     timeout: 8000
 - tapOn:
     id: "waterwala.com.prime:id/fab"
-- waitUntilVisible:
-    id: "waterwala.com.prime:id/helpdeskFragment"
+- extendedWaitUntil:
+    visible:
+      id: "waterwala.com.prime:id/helpdeskFragment"
     timeout: 8000
 - tapOn:
     id: "waterwala.com.prime:id/helpdeskFragment"
-- waitUntilVisible:
-    id: "waterwala.com.prime:id/menuFragment"
+- extendedWaitUntil:
+    visible:
+      id: "waterwala.com.prime:id/menuFragment"
     timeout: 8000
 - tapOn:
     id: "waterwala.com.prime:id/menuFragment"
