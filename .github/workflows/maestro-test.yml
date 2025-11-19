@@ -6,22 +6,6 @@ on:
   pull_request:
     branches: [ main ]
   workflow_dispatch:
-    inputs:
-      run_additional_tests:
-        description: 'Run additional tests after simple_flow'
-        required: false
-        default: false
-        type: boolean
-      debug_flow:
-        description: 'Run debug flow'
-        required: false
-        default: false
-        type: boolean
-      crash_flow:
-        description: 'Run crash debug flow'
-        required: false
-        default: false
-        type: boolean
           
 
 jobs:
@@ -42,24 +26,13 @@ jobs:
     - name: Setup Android SDK
       uses: android-actions/setup-android@v3
       
-    - name: Install system image and create AVD
+    - name: Increase Swap Memory (Community Fix)
       run: |
-        echo "Installing system image..."
-        sdkmanager "system-images;android-30;default;x86_64"
-        echo "System image installed"       
-    - name: Create and start AVD
-      run: |
-        echo "Creating Android Virtual Device..."
-        echo "no" | avdmanager create avd -n test_avd -k "system-images;android-30;default;x86_64" --force
-        echo "Starting emulator..."
-        nohup $ANDROID_HOME/emulator/emulator -avd test_avd -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim &
-        
-    - name: Wait for emulator to be ready
-      run: |
-        echo "Waiting for emulator to be ready..."
-        adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed | tr -d "\r") ]]; do sleep 1; done; input keyevent 82'
-        echo "Emulator is ready!"
-        adb devices
+        sudo fallocate -l 4G /swapfile
+        sudo chmod 600 /swapfile
+        sudo mkswap /swapfile
+        sudo swapon /swapfile
+        echo "✅ Swap memory added successfully"
         
     - name: Install Maestro CLI
       run: |
@@ -71,49 +44,51 @@ jobs:
       run: |
         maestro --version
         
-    - name: Install APK on emulator
+    - name: Prepare Maestro test script
       run: |
-        echo "Installing APK on emulator..."
+        cat > run_maestro_tests.sh << 'EOF'
+        #!/usr/bin/env bash
+        set -e
+        echo "=== MAESTRO TEST EXECUTION ==="
+        
+        # Wait for device and boot completion
+        adb wait-for-device
+        timeout 180 bash -c 'until adb shell getprop sys.boot_completed | grep -m 1 1; do sleep 2; done'
+        adb shell input keyevent 82 || true
+        sleep 20
+        
+        # Disable animations for stable testing
+        adb shell settings put global window_animation_scale 0 || true
+        adb shell settings put global transition_animation_scale 0 || true
+        adb shell settings put global animator_duration_scale 0 || true
+        
+        # Install APK
         cd Maestro
         if [ -f "android-customer-app-changes-may-s1.apk" ]; then
-          adb install android-customer-app-changes-may-s1.apk
+          echo "Installing APK..."
+          adb install -r "android-customer-app-changes-may-s1.apk"
           echo "APK installed successfully"
         else
-          echo "APK file not found in Maestro directory"
-          ls -la
+          echo "APK file not found"
           exit 1
         fi
         
-    - name: Run Primary Test - Simple Flow
-      run: |
-        echo "Running primary test - simple_flow.yaml..."
-        cd Maestro
+        # Run simple_flow only
+        echo "🚀 Running simple_flow.yaml..."
         maestro test simple_flow.yaml
         echo "✅ simple_flow.yaml completed successfully"
-        
-    - name: Run Debug Flow (Optional)
-      if: github.event.inputs.debug_flow == 'true' || github.event.inputs.run_additional_tests == 'true'
-      run: |
-        echo "Running debug_flow.yaml..."
-        cd Maestro
-        if [ -f "debug_flow.yaml" ]; then
-          maestro test debug_flow.yaml
-          echo "✅ debug_flow.yaml completed"
-        else
-          echo "⚠️  debug_flow.yaml not found, skipping"
-        fi
-        
-    - name: Run Crash Debug Flow (Optional)  
-      if: github.event.inputs.crash_flow == 'true' || github.event.inputs.run_additional_tests == 'true'
-      run: |
-        echo "Running crash_debug_flow.yaml..."
-        cd Maestro
-        if [ -f "crash_debug_flow.yaml" ]; then
-          maestro test crash_debug_flow.yaml
-          echo "✅ crash_debug_flow.yaml completed"
-        else
-          echo "⚠️  crash_debug_flow.yaml not found, skipping"
-        fi
+        EOF
+        chmod +x run_maestro_tests.sh
+    - name: Run Maestro Tests with Stable Emulator
+      uses: reactivecircus/android-emulator-runner@v2
+      with:
+        api-level: 29
+        target: default
+        arch: x86_64
+        profile: pixel
+        emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+        disable-animations: false
+        script: ./run_maestro_tests.sh
         
     - name: Upload test artifacts
       if: always()
@@ -123,6 +98,7 @@ jobs:
         path: |
           Maestro/*.png
           ~/.maestro/logs/
+          **/*screenshot*.png
         retention-days: 30
         
     - name: Upload screenshots
@@ -132,4 +108,5 @@ jobs:
         name: test-screenshots
         path: |
           Maestro/*.png
+          **/*screenshot*.png
         retention-days: 7
