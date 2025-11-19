@@ -1,0 +1,104 @@
+name: Maestro Mobile Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      test_file:
+        description: 'Maestro test file to run'
+        required: false
+        default: 'simple_flow.yaml'
+        type: choice
+        options:
+          - simple_flow.yaml
+          - sample_flow.yaml
+          - debug_flow.yaml
+
+jobs:
+  maestro-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+      
+    - name: Set up JDK 11
+      uses: actions/setup-java@v4
+      with:
+        java-version: '11'
+        distribution: 'temurin'
+        
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+      with:
+        api-level: 30
+        target: default
+        arch: x86_64
+        
+    - name: Create and start AVD
+      run: |
+        echo "Creating Android Virtual Device..."
+        echo "no" | avdmanager create avd -n test_avd -k "system-images;android-30;default;x86_64" --force
+        echo "Starting emulator..."
+        nohup $ANDROID_HOME/emulator/emulator -avd test_avd -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim &
+        
+    - name: Wait for emulator to be ready
+      run: |
+        echo "Waiting for emulator to be ready..."
+        adb wait-for-device shell 'while [[ -z $(getprop sys.boot_completed | tr -d "\r") ]]; do sleep 1; done; input keyevent 82'
+        echo "Emulator is ready!"
+        adb devices
+        
+    - name: Install Maestro CLI
+      run: |
+        echo "Installing Maestro CLI..."
+        curl -Ls "https://get.maestro.mobile.dev" | bash
+        echo "$HOME/.maestro/bin" >> $GITHUB_PATH
+        
+    - name: Verify Maestro installation
+      run: |
+        maestro --version
+        
+    - name: Install APK on emulator
+      run: |
+        echo "Installing APK on emulator..."
+        cd Maestro
+        if [ -f "android-customer-app-changes-may-s1.apk" ]; then
+          adb install android-customer-app-changes-may-s1.apk
+          echo "APK installed successfully"
+        else
+          echo "APK file not found in Maestro directory"
+          ls -la
+          exit 1
+        fi
+        
+    - name: Run Maestro test
+      run: |
+        echo "Running Maestro test..."
+        cd Maestro
+        test_file="${{ github.event.inputs.test_file || 'simple_flow.yaml' }}"
+        echo "Running test file: $test_file"
+        maestro test "$test_file"
+        
+    - name: Upload test artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: maestro-test-results
+        path: |
+          Maestro/*.png
+          ~/.maestro/logs/
+        retention-days: 30
+        
+    - name: Upload screenshots
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-screenshots
+        path: |
+          Maestro/*.png
+        retention-days: 7

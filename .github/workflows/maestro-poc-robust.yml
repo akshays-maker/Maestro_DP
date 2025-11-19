@@ -27,62 +27,45 @@ jobs:
           echo "=== Maestro directory ==="
           ls -la Maestro/
 
-      - name: Create AVD manually
+      - name: Prepare test script (robust)
         run: |
-          echo "Creating AVD manually..."
-          echo "no" | $ANDROID_HOME/cmdline-tools/latest/bin/avdmanager create avd \
-            --force \
-            --name test_avd \
-            --package "system-images;android-30;google_apis;x86_64" \
-            --tag google_apis \
-            --abi x86_64
-
-      - name: Start emulator manually
-        run: |
-          echo "Starting emulator..."
-          $ANDROID_HOME/emulator/emulator \
-            -avd test_avd \
-            -no-window \
-            -no-audio \
-            -no-snapshot-save \
-            -gpu swiftshader_indirect \
-            -memory 2048 \
-            -wipe-data &
+          cat > run_test.sh << 'EOF'
+          #!/usr/bin/env bash
+          set -e
+          adb wait-for-device
+          timeout 180 bash -c 'until adb shell getprop sys.boot_completed | grep -m 1 1; do sleep 2; done'
+          adb shell input keyevent 82 || true
+          sleep 20
           
-          # Wait for device
-          echo "Waiting for device..."
-          $ANDROID_HOME/platform-tools/adb wait-for-device
+          # Ignore failures on settings in CI
+          adb shell settings put global window_animation_scale 0 || true
+          adb shell settings put global transition_animation_scale 0 || true
+          adb shell settings put global animator_duration_scale 0 || true
           
-          # Wait for boot
-          echo "Waiting for boot completion..."
-          while [ "`$ANDROID_HOME/platform-tools/adb shell getprop sys.boot_completed 2>/dev/null`" != "1" ]; do
-            sleep 5
-            echo "Still booting..."
-          done
-          echo "Boot completed!"
-
-      - name: Install and test app
-        run: |
           APK_FILE=$(find . -name "*.apk" -type f | head -1)
-          echo "Installing: $APK_FILE"
+          echo "APK: $APK_FILE"
+          adb install -r "$APK_FILE"
           
-          # Install APK
-          adb install "$APK_FILE"
-          
-          # Basic device info
-          echo "=== DEVICE INFO ==="
-          adb shell getprop ro.product.model
-          adb shell getprop ro.build.version.release
-          adb shell getprop ro.build.version.sdk
-          echo "=================="
-          
-          # Run Maestro tests
           cd Maestro
-          echo "Testing crash debug flow..."
-          maestro test crash_debug_flow.yaml || echo "Crash debug flow had issues"
-          
-          echo "Testing sample flow with ID-based targeting..."
-          maestro test sample_flow.yaml || echo "Sample flow had issues"
+          maestro test sample_flow.yaml || true
+          maestro test debug_flow.yaml || true
+          maestro test crash_debug_flow.yaml || true
+          # Save diagnostics
+          adb shell screencap -p > final_screenshot.png || true
+          adb logcat -d > maestro_logcat.txt || true
+          EOF
+          chmod +x run_test.sh
+
+      - name: Start Emulator (stable) and run
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 29
+          target: default
+          arch: x86_64
+          profile: pixel
+          emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          disable-animations: false
+          script: ./run_test.sh
 
       - name: Upload test results
         if: always()
@@ -92,4 +75,5 @@ jobs:
           path: |
             Maestro/*.yaml
             Maestro/*.png
+            Maestro/*.txt
             ~/.maestro/logs/

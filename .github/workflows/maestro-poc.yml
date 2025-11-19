@@ -43,6 +43,40 @@ jobs:
           echo "=== Maestro directory ==="
           ls -la Maestro/
 
+      - name: Prepare test script (simple)
+        run: |
+          cat > run_test.sh << 'EOF'
+          #!/usr/bin/env bash
+          set -e
+          echo "=== SIMPLE MAESTRO RUN ==="
+          adb wait-for-device
+          timeout 180 bash -c 'until adb shell getprop sys.boot_completed | grep -m 1 1; do sleep 2; done'
+          adb shell input keyevent 82 || true
+          sleep 20
+
+          # Best-effort animation disable (ignore errors)
+          adb shell settings put global window_animation_scale 0 || true
+          adb shell settings put global transition_animation_scale 0 || true
+          adb shell settings put global animator_duration_scale 0 || true
+
+          APK_FILE=$(find . -name "*.apk" -type f | head -1)
+          echo "APK: $APK_FILE"
+          adb install -r "$APK_FILE"
+
+          PACKAGE_NAME=waterwala.com.prime
+          adb shell monkey -p "$PACKAGE_NAME" -c android.intent.category.LAUNCHER 1 || true
+          sleep 8
+
+          cd Maestro
+          maestro test sample_flow.yaml || true
+          maestro test debug_flow.yaml || true
+          maestro test crash_debug_flow.yaml || true
+          # Capture final screenshot and logcat for diagnostics
+          adb shell screencap -p > final_screenshot.png || true
+          adb logcat -d > maestro_logcat.txt || true
+          EOF
+          chmod +x run_test.sh
+
       - name: Start Emulator and Run Test
         uses: reactivecircus/android-emulator-runner@v2
         with:
@@ -52,89 +86,7 @@ jobs:
           profile: pixel
           emulator-options: -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
           disable-animations: false
-          script: |
-            set -e
-            echo "=== COMMUNITY STABLE EMULATOR CONFIG ==="
-            
-            # Fix 2: Long boot timeout - wait for device properly
-            adb wait-for-device
-            echo "Device detected, waiting for boot completion..."
-            
-            # Wait for boot completion with longer timeout
-            timeout 120 bash -c 'while [[ -z $(adb shell getprop sys.boot_completed 2>/dev/null) ]]; do sleep 2; echo "Still booting..."; done' || echo "Boot timeout reached"
-            
-            # Fix 5: Wake up emulator
-            adb shell input keyevent 82
-            
-            # Fix 2: Additional wait for system to stabilize (community recommendation)
-            echo "Waiting 30 seconds for system stabilization..."
-            sleep 30
-            
-            # Verify emulator is ready
-            echo "Final device check:"
-            adb devices
-            
-            echo "=== DEVICE INFORMATION ==="
-            adb shell getprop ro.product.model
-            adb shell getprop ro.build.version.release
-            adb shell getprop ro.build.version.sdk
-            adb shell getprop ro.product.cpu.abi
-            echo "==============================="
-            
-            # Fix 3: Disable animations inside emulator (ignore errors - common issue)
-            echo "Disabling animations..."
-            adb shell settings put global window_animation_scale 0 || echo "Animation setting failed (common in CI)"
-            adb shell settings put global transition_animation_scale 0 || echo "Transition setting failed (common in CI)"  
-            adb shell settings put global animator_duration_scale 0 || echo "Animator setting failed (common in CI)"
-            
-            # Find and install APK
-            APK_FILE=$(find . -name "*.apk" -type f | head -1)
-            if [ -z "$APK_FILE" ]; then
-              echo "No APK found"
-              exit 1
-            fi
-            
-            echo "Installing: $APK_FILE"
-            adb install -r "$APK_FILE"
-            
-            # Verify app installation
-            PACKAGE_NAME="waterwala.com.prime"
-            if adb shell pm list packages | grep -q prime; then
-              echo "✅ App installed successfully"
-            else
-              echo "❌ App installation verification failed"
-            fi
-            
-            # Grant permissions (ignore failures)
-            echo "Granting permissions..."
-            adb shell pm grant "$PACKAGE_NAME" android.permission.READ_PHONE_STATE 2>/dev/null || echo "Phone permission not needed"
-            adb shell pm grant "$PACKAGE_NAME" android.permission.INTERNET 2>/dev/null || echo "Internet permission not needed"
-            
-            # Launch app and wait for it to start
-            echo "Launching app..."
-            adb shell monkey -p "$PACKAGE_NAME" -c android.intent.category.LAUNCHER 1
-            sleep 10
-            
-            # Check if app is running
-            if adb shell ps | grep -q "$PACKAGE_NAME"; then
-              echo "✅ App is running!"
-            else
-              echo "❌ App not running - checking logs..."
-              adb logcat -d | grep -E "($PACKAGE_NAME|AndroidRuntime|FATAL)" | tail -10
-            fi
-            
-            cd Maestro
-            echo "Running Maestro tests with retry logic (Fix 6)..."
-            
-            # Fix 6: Retry logic around maestro execution
-            echo "Running crash debug flow..."
-            maestro test crash_debug_flow.yaml || (echo "Retrying crash debug..." && sleep 10 && maestro test crash_debug_flow.yaml) || echo "Crash debug flow failed"
-            
-            echo "Running debug flow..."
-            maestro test debug_flow.yaml || (echo "Retrying debug..." && sleep 10 && maestro test debug_flow.yaml) || echo "Debug flow failed"
-            
-            echo "Running sample flow with ID-based targeting..."
-            maestro test sample_flow.yaml || (echo "Retrying sample..." && sleep 10 && maestro test sample_flow.yaml) || echo "Sample flow failed"
+          script: ./run_test.sh
 
       - name: Upload test results
         if: always()
@@ -144,4 +96,5 @@ jobs:
           path: |
             Maestro/*.yaml
             Maestro/*.png
+            Maestro/*.txt
             ~/.maestro/logs/

@@ -54,6 +54,8 @@ jobs:
           
           # Capture a screenshot regardless of app state
           adb shell screencap -p > app_test_screenshot.png || true
+          # Dump logcat for debugging
+          adb logcat -d > app_test_logcat.txt || true
           EOF
           chmod +x simple_test.sh
 
@@ -72,5 +74,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: app-test-screenshot
-          path: app_test_screenshot.png
+          name: app-test-artifacts
+          path: |
+            app_test_screenshot.png
+            app_test_logcat.txt
