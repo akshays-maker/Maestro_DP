@@ -2,8 +2,8 @@ name: Maestro POC
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ main ]
+  # push:
+  #   branches: [ main ]  # Disabled to prevent conflicts with main maestro-test workflow
 
 jobs:
   run-maestro-poc:

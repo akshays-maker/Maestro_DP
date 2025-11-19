@@ -3,15 +3,25 @@ name: Maestro Mobile Test
 on:
   push:
     branches: [ main ]
+  pull_request:
+    branches: [ main ]
   workflow_dispatch:
     inputs:
-      test_file:
-        description: 'Maestro test file to run'
+      run_additional_tests:
+        description: 'Run additional tests after simple_flow'
         required: false
-        default: 'simple_flow.yaml'
-        type: choice
-        options:
-          - simple_flow.yaml
+        default: false
+        type: boolean
+      debug_flow:
+        description: 'Run debug flow'
+        required: false
+        default: false
+        type: boolean
+      crash_flow:
+        description: 'Run crash debug flow'
+        required: false
+        default: false
+        type: boolean
           
 
 jobs:
@@ -74,13 +84,36 @@ jobs:
           exit 1
         fi
         
-    - name: Run Maestro test
+    - name: Run Primary Test - Simple Flow
       run: |
-        echo "Running Maestro test..."
+        echo "Running primary test - simple_flow.yaml..."
         cd Maestro
-        test_file="${{ github.event.inputs.test_file || 'simple_flow.yaml' }}"
-        echo "Running test file: $test_file"
-        maestro test "$test_file"
+        maestro test simple_flow.yaml
+        echo "✅ simple_flow.yaml completed successfully"
+        
+    - name: Run Debug Flow (Optional)
+      if: github.event.inputs.debug_flow == 'true' || github.event.inputs.run_additional_tests == 'true'
+      run: |
+        echo "Running debug_flow.yaml..."
+        cd Maestro
+        if [ -f "debug_flow.yaml" ]; then
+          maestro test debug_flow.yaml
+          echo "✅ debug_flow.yaml completed"
+        else
+          echo "⚠️  debug_flow.yaml not found, skipping"
+        fi
+        
+    - name: Run Crash Debug Flow (Optional)  
+      if: github.event.inputs.crash_flow == 'true' || github.event.inputs.run_additional_tests == 'true'
+      run: |
+        echo "Running crash_debug_flow.yaml..."
+        cd Maestro
+        if [ -f "crash_debug_flow.yaml" ]; then
+          maestro test crash_debug_flow.yaml
+          echo "✅ crash_debug_flow.yaml completed"
+        else
+          echo "⚠️  crash_debug_flow.yaml not found, skipping"
+        fi
         
     - name: Upload test artifacts
       if: always()
