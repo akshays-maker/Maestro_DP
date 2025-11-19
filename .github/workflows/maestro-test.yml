@@ -2,8 +2,6 @@ name: Maestro Mobile Test
 
 on:
   push:
-    branches: [ main, develop ]
-  pull_request:
     branches: [ main ]
   workflow_dispatch:
     inputs:
@@ -14,8 +12,7 @@ on:
         type: choice
         options:
           - simple_flow.yaml
-          - sample_flow.yaml
-          - debug_flow.yaml
+          
 
 jobs:
   maestro-test:

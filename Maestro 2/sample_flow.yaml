@@ -1,14 +1,7 @@
 appId: waterwala.com.prime
 ---
 - launchApp
-- runFlow:
-    when:
-      visible:
-        id: "waterwala.com.prime:id/et_mobile"
-    commands:
-      - tapOn:
-          id: "waterwala.com.prime:id/et_mobile"
-      - takeScreenshot: "01_found_mobile_number.png"
+- tapOn: "Mobile Number"
 - inputText: "9876543210"
 - tapOn: "Request OTP"
 - assertVisible: "Enter OTP"
